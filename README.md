@@ -36,5 +36,14 @@
 - [stable-retro](https://github.com/Farama-Foundation/stable-retro)
 
 ---
-First decision is to train on tetris on different 
+First decision is to train on tetris on different - shut up Ciaran
+
+Anyways...
+
+- [Deep Reinforcement Learning with SWIN Transformers](https://dl.acm.org/doi/10.1145/3653876.3653899)
+- [Medium Article using ViT to play Pong](https://pub.aimind.so/playing-pong-with-vision-transformer-dd8818b2ccba)
+
+---
+
+We are thinking of using the [Arcade Learning Environment with Tetris](https://ale.farama.org/environments/tetris/)
 
