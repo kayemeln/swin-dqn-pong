@@ -27,9 +27,10 @@ actions.n_actions = 6
 
 # ----- LOAD MODEL ----- #
 
-model = torch.load(model_path, weights_only=False)
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+model = torch.load(model_path, weights_only=False, map_location=device)
 model.eval()
-print(f"Loaded model from {model_path}")
+print(f"Loaded model from {model_path} (device: {device})")
 
 # ----- INITIALIZATION ----- #
 
@@ -44,7 +45,7 @@ terminated = False
 score = 0
 
 while True:
-    output = model(torch.tensor(state, dtype=torch.float32).unsqueeze(0))
+    output = model(torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(device))
     action = actions.get_action(output, epsilon=0)
 
     next_state, reward, terminated, truncated, info = env.step(torch.argmax(action).item())
