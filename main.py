@@ -19,6 +19,7 @@ import models, states, actions, plotting
 
 # interface & runtime
 name = "CNN_2"
+load_model = "CNN_2_300000.pth"  # set to a .pth path to resume training, e.g. 'results/CNN_2/CNN_2_100000.pth'
 render = False
 n_iterations = int(1e6)
 save_every = int(1e5)
@@ -31,7 +32,7 @@ minibatch_size = 32
 
 # randomness
 epsilon_fn = partial(actions.epsilon,
-    initial_epsilon=1,
+    initial_epsilon=0.01 if load_model else 1,
     min_epsilon=0.01,
     min_epsilon_iteration=0.1*n_iterations  # 100k steps of exploration
     )
@@ -42,7 +43,11 @@ discount = 0.99
 replay_start_size = 10000        # fill replay buffer before training
 target_update_freq = 1000        # how often to sync target network
 
-model = models.ConvModel(states.img_size, states.n_frames, actions.n_actions)
+if load_model:
+    model = torch.load(load_model, map_location='cpu', weights_only=False)
+    print(f"Loaded model from {load_model}")
+else:
+    model = models.ConvModel(states.img_size, states.n_frames, actions.n_actions)
 target_model = copy.deepcopy(model)
 target_model.eval()
 
@@ -72,12 +77,6 @@ terminated = True
 quit = False
 save = False
 train_step = 0
-
-# get the evaluation states if the standard img_size and n_frames are applied
-evaluation_states = None
-if states.img_size == (84, 84) and states.n_frames == 4:
-    if os.path.exists('evaluation_states.pkl'):
-        evaluation_states = torch.load('evaluation_states.pkl')
 
 
 # ----- TRAINING LOOP ----- #
@@ -157,7 +156,7 @@ try:
             ma_scores += [torch.mean(torch.tensor(scores[-100:])).item()]
             losses += [torch.mean(torch.tensor(ep_loss)).item() if ep_loss else 0]
 
-            print(f"\rEnd of game (iteration {i}), ma_score: {ma_scores[-1]:.2f}, epsilon: {epsilon:.3f}")
+            print(f"\rEnd of game (iteration {i}), episode_score:{score:.2f}, ma_score: {ma_scores[-1]:.2f}, epsilon: {epsilon:.3f}")
 
         if save:
             plotting.save_plot(iterations, ma_scores, name)
