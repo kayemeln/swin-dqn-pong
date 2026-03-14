@@ -13,6 +13,7 @@ import torch, random, os, copy
 from collections import deque
 from functools import partial
 import models, states, actions, plotting
+import numpy as np
 
 
 # ----- SETTINGS ----- #
@@ -20,7 +21,7 @@ import models, states, actions, plotting
 # interface & runtime
 name = "CNN_2"
 render = False
-n_iterations = int(1e6)
+n_iterations = int(1e7)
 save_every = int(1e5)
 
 # preprocessing
@@ -73,13 +74,6 @@ quit = False
 save = False
 train_step = 0
 
-# get the evaluation states if the standard img_size and n_frames are applied
-evaluation_states = None
-if states.img_size == (84, 84) and states.n_frames == 4:
-    if os.path.exists('evaluation_states.pkl'):
-        evaluation_states = torch.load('evaluation_states.pkl')
-
-
 # ----- TRAINING LOOP ----- #
 
 try:
@@ -119,8 +113,8 @@ try:
         minibatch = random.sample(D, min(len(D), minibatch_size))
         states_batch, actions_batch, rewards_batch, next_states_batch, terminations_batch = tuple([*zip(*minibatch)])
 
-        states_batch = torch.tensor(states_batch, dtype=torch.float32).to(device)
-        next_states_batch = torch.tensor(next_states_batch, dtype=torch.float32).to(device)
+        states_batch = torch.tensor(np.array(states_batch), dtype=torch.float32).to(device)
+        next_states_batch = torch.tensor(np.array(next_states_batch), dtype=torch.float32).to(device)
         actions_batch = torch.stack(actions_batch).to(device)
         rewards_batch = torch.tensor(rewards_batch, dtype=torch.float32).to(device)
         terminations_batch = torch.tensor(terminations_batch, dtype=torch.float32).to(device)
@@ -157,7 +151,7 @@ try:
             ma_scores += [torch.mean(torch.tensor(scores[-100:])).item()]
             losses += [torch.mean(torch.tensor(ep_loss)).item() if ep_loss else 0]
 
-            print(f"\rEnd of game (iteration {i}), ma_score: {ma_scores[-1]:.2f}, epsilon: {epsilon:.3f}")
+            print(f"\rEnd of game (iteration {i}),episode_score: {score} ma_score: {ma_scores[-1]:.2f}, epsilon: {epsilon:.3f}")
 
         if save:
             plotting.save_plot(iterations, ma_scores, name)
