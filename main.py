@@ -13,13 +13,14 @@ import torch, random, os, copy
 from collections import deque
 from functools import partial
 import models, states, actions, plotting
+import numpy as np
 
 
 # ----- SETTINGS ----- #
 
 # interface & runtime
-name = "CNN_2"
-load_model = "CNN_2_300000.pth"  # set to a .pth path to resume training, e.g. 'results/CNN_2/CNN_2_100000.pth'
+name = "CNN_3"
+load_model = "None"  # set to a .pth path to resume training, e.g. 'results/CNN_2/CNN_2_100000.pth'
 render = False
 n_iterations = int(1e6)
 save_every = int(1e5)
@@ -118,8 +119,8 @@ try:
         minibatch = random.sample(D, min(len(D), minibatch_size))
         states_batch, actions_batch, rewards_batch, next_states_batch, terminations_batch = tuple([*zip(*minibatch)])
 
-        states_batch = torch.tensor(states_batch, dtype=torch.float32).to(device)
-        next_states_batch = torch.tensor(next_states_batch, dtype=torch.float32).to(device)
+        states_batch = torch.tensor(np.array(states_batch), dtype=torch.float32).to(device)
+        next_states_batch = torch.tensor(np.array(next_states_batch), dtype=torch.float32).to(device)
         actions_batch = torch.stack(actions_batch).to(device)
         rewards_batch = torch.tensor(rewards_batch, dtype=torch.float32).to(device)
         terminations_batch = torch.tensor(terminations_batch, dtype=torch.float32).to(device)
