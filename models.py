@@ -33,8 +33,8 @@ class ConvModel(torch.nn.Module):
         )
         self.conv_layers = conv_layers
         fc_layers = torch.nn.Sequential(
-            torch.nn.Linear(self.get_conv_output(conv_layers, img_size, n_frames), 512), 
-            torch.nn.ReLU(), 
+            torch.nn.Linear(self.get_conv_output(conv_layers, img_size, n_frames), 512),
+            torch.nn.ReLU(),
             torch.nn.Linear(512, n_actions),
         )
         self.layers = torch.nn.Sequential(*(list(conv_layers) + [torch.nn.Flatten()] + list(fc_layers)))  

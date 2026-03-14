@@ -19,7 +19,8 @@ import numpy as np
 # ----- SETTINGS ----- #
 
 # interface & runtime
-name = "CNN_2"
+name = "CNN_3"
+load_model = "None"  # set to a .pth path to resume training, e.g. 'results/CNN_2/CNN_2_100000.pth'
 render = False
 n_iterations = int(1e7)
 save_every = int(1e5)
@@ -32,7 +33,7 @@ minibatch_size = 32
 
 # randomness
 epsilon_fn = partial(actions.epsilon,
-    initial_epsilon=1,
+    initial_epsilon=0.01 if load_model else 1,
     min_epsilon=0.01,
     min_epsilon_iteration=0.1*n_iterations  # 100k steps of exploration
     )
@@ -43,7 +44,11 @@ discount = 0.99
 replay_start_size = 10000        # fill replay buffer before training
 target_update_freq = 1000        # how often to sync target network
 
-model = models.ConvModel(states.img_size, states.n_frames, actions.n_actions)
+if load_model:
+    model = torch.load(load_model, map_location='cpu', weights_only=False)
+    print(f"Loaded model from {load_model}")
+else:
+    model = models.ConvModel(states.img_size, states.n_frames, actions.n_actions)
 target_model = copy.deepcopy(model)
 target_model.eval()
 
