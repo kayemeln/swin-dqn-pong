@@ -20,7 +20,7 @@ import numpy as np
 
 # interface & runtime
 name = "CNN_3"
-load_model = "None"  # set to a .pth path to resume training, e.g. 'results/CNN_2/CNN_2_100000.pth'
+load_model = None  # set to a .pth path to resume training, e.g. 'results/CNN_2/CNN_2_100000.pth'
 render = False
 n_iterations = int(1e7)
 save_every = int(1e5)
@@ -48,7 +48,7 @@ if load_model:
     model = torch.load(load_model, map_location='cpu', weights_only=False)
     print(f"Loaded model from {load_model}")
 else:
-    model = models.ConvModel(states.img_size, states.n_frames, actions.n_actions)
+    model = models.VisionTransformer(img_size=states.img_size[0], n_frames=states.n_frames, num_actions=actions.n_actions)
 target_model = copy.deepcopy(model)
 target_model.eval()
 
