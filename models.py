@@ -84,18 +84,18 @@ class LinearModel(torch.nn.Module):
 """
 
 class Attention(nn.Module):
-    def __init__(self, vis):
+    def __init__(self, hidden_size, num_heads, vis):
         super(Attention, self).__init__()
         self.vis = vis
-        self.num_attention_heads = 12
-        self.attention_head_size = int(768 / self.num_attention_heads)
+        self.num_attention_heads = num_heads
+        self.attention_head_size = int(hidden_size / self.num_attention_heads)
         self.all_head_size = self.num_attention_heads * self.attention_head_size
 
-        self.query = Linear(768, self.all_head_size)
-        self.key = Linear(768, self.all_head_size)
-        self.value = Linear(768, self.all_head_size)
+        self.query = Linear(hidden_size, self.all_head_size)
+        self.key = Linear(hidden_size, self.all_head_size)
+        self.value = Linear(hidden_size, self.all_head_size)
 
-        self.out = Linear(768, 768)
+        self.out = Linear(hidden_size, hidden_size)
         self.attn_dropout = Dropout(0.1)
         self.proj_dropout = Dropout(0.1)
 
@@ -130,10 +130,10 @@ class Attention(nn.Module):
         return attention_output, weights
 
 class Mlp(nn.Module):
-    def __init__(self):
+    def __init__(self, hidden_size, mlp_size):
         super(Mlp, self).__init__()
-        self.fc1 = Linear(768, 3072)
-        self.fc2 = Linear(3072, 768)
+        self.fc1 = Linear(hidden_size, mlp_size)
+        self.fc2 = Linear(mlp_size, hidden_size)
         self.act_fn = torch.nn.functional.gelu
         self.dropout = Dropout(0.1)
 
@@ -156,7 +156,7 @@ class Mlp(nn.Module):
 class Embeddings(nn.Module):
     """Construct the embeddings from patch, position embeddings.
     """
-    def __init__(self, img_size, in_channels=4):
+    def __init__(self, img_size, hidden_size, in_channels=4):
         super(Embeddings, self).__init__()
         img_size = _pair(img_size)
 
@@ -164,11 +164,11 @@ class Embeddings(nn.Module):
         n_patches = (img_size[0] // patch_size[0]) * (img_size[1] // patch_size[1])
 
         self.patch_embeddings = Conv2d(in_channels=in_channels,
-                                       out_channels=768,
+                                       out_channels=hidden_size,
                                        kernel_size=patch_size,
                                        stride=patch_size)
-        self.position_embeddings = nn.Parameter(torch.zeros(1, n_patches+1, 768))
-        self.cls_token = nn.Parameter(torch.zeros(1, 1, 768))
+        self.position_embeddings = nn.Parameter(torch.zeros(1, n_patches+1, hidden_size))
+        self.cls_token = nn.Parameter(torch.zeros(1, 1, hidden_size))
 
         self.dropout = Dropout(0.1)
 
@@ -186,13 +186,12 @@ class Embeddings(nn.Module):
         return embeddings
 
 class Block(nn.Module):
-    def __init__(self, vis):
+    def __init__(self, hidden_size, num_heads, mlp_size, vis):
         super(Block, self).__init__()
-        self.hidden_size = 768
-        self.attention_norm = LayerNorm(768, eps=1e-6)
-        self.ffn_norm = LayerNorm(768, eps=1e-6)
-        self.ffn = Mlp()
-        self.attn = Attention(vis)
+        self.attention_norm = LayerNorm(hidden_size, eps=1e-6)
+        self.ffn_norm = LayerNorm(hidden_size, eps=1e-6)
+        self.ffn = Mlp(hidden_size, mlp_size)
+        self.attn = Attention(hidden_size, num_heads, vis)
 
     def forward(self, x):
         h = x
@@ -207,13 +206,13 @@ class Block(nn.Module):
         return x, weights
 
 class Encoder(nn.Module):
-    def __init__(self, vis):
+    def __init__(self, hidden_size, num_heads, mlp_size, num_layers, vis):
         super(Encoder, self).__init__()
         self.vis = vis
         self.layer = nn.ModuleList()
-        self.encoder_norm = LayerNorm(768, eps=1e-6)
-        for _ in range(12): # 12 layers
-            layer = Block(vis)
+        self.encoder_norm = LayerNorm(hidden_size, eps=1e-6)
+        for _ in range(num_layers):
+            layer = Block(hidden_size, num_heads, mlp_size, vis)
             self.layer.append(layer)
 
     def forward(self, hidden_states):
@@ -226,10 +225,10 @@ class Encoder(nn.Module):
         return encoded, attn_weights
 
 class Transformer(nn.Module):
-    def __init__(self, img_size, vis, in_channels=4):
+    def __init__(self, img_size, hidden_size, num_heads, mlp_size, num_layers, vis, in_channels=4):
         super(Transformer, self).__init__()
-        self.embeddings = Embeddings(img_size=img_size, in_channels=in_channels)
-        self.encoder = Encoder(vis)
+        self.embeddings = Embeddings(img_size=img_size, hidden_size=hidden_size, in_channels=in_channels)
+        self.encoder = Encoder(hidden_size, num_heads, mlp_size, num_layers, vis)
 
     def forward(self, input_ids):
         embedding_output = self.embeddings(input_ids)
@@ -237,12 +236,12 @@ class Transformer(nn.Module):
         return encoded, attn_weights
 
 class VisionTransformer(nn.Module):
-    def __init__(self, img_size=84, n_frames=4, num_actions=6, vis=False):
+    def __init__(self, img_size=84, n_frames=4, num_actions=6, hidden_size=160, num_heads=4, mlp_size=640, num_layers=6, vis=False):
         super(VisionTransformer, self).__init__()
         self.num_actions = num_actions
 
-        self.transformer = Transformer(img_size, vis, in_channels=n_frames)
-        self.head = Linear(768, num_actions)
+        self.transformer = Transformer(img_size, hidden_size, num_heads, mlp_size, num_layers, vis, in_channels=n_frames)
+        self.head = Linear(hidden_size, num_actions)
 
     def forward(self, x):
         if len(x.shape) == 3:
