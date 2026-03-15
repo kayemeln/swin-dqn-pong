@@ -19,7 +19,7 @@ import numpy as np
 # ----- SETTINGS ----- #
 
 # interface & runtime
-name = "ViT_1"
+name = "Swin_1"
 load_model = None  # set to a .pth path to resume training, e.g. 'results/CNN_2/CNN_2_100000.pth'
 render = False
 n_iterations = int(1e7)
@@ -48,7 +48,8 @@ if load_model:
     model = torch.load(load_model, map_location='cpu', weights_only=False)
     print(f"Loaded model from {load_model}")
 else:
-    model = models.VisionTransformer(img_size=states.img_size[0], n_frames=states.n_frames, num_actions=actions.n_actions)
+#    model = models.VisionTransformer(img_size=states.img_size[0], n_frames=states.n_frames, num_actions=actions.n_actions)
+    model = models.SwinDQN(states.n_frames, actions.n_actions)
 target_model = copy.deepcopy(model)
 target_model.eval()
 
@@ -70,7 +71,7 @@ target_model.to(device)
 
 # initialize storage
 D = deque(maxlen=10**5)
-iterations, scores, ma_scores, losses, av_Qs = [], [], [], [], []
+iterations, scores, ma_scores, losses, epsilons, av_Qs = [], [], [], [], [], []
 if not os.path.exists('results/'+name): os.makedirs('results/'+name)  # create a folder to store the results
 
 # set some variables for the loop
@@ -109,6 +110,7 @@ try:
                 scores += [score]
                 ma_scores += [torch.mean(torch.tensor(scores[-100:])).item()]
                 losses += [0]
+                epsilons += [epsilon]
                 print(f"\rFilling replay buffer... ({len(D)}/{replay_start_size})")
             continue
 
@@ -155,11 +157,12 @@ try:
             scores += [score]
             ma_scores += [torch.mean(torch.tensor(scores[-100:])).item()]
             losses += [torch.mean(torch.tensor(ep_loss)).item() if ep_loss else 0]
+            epsilons += [epsilon]
 
             print(f"\rEnd of game (iteration {i}),episode_score: {score} ma_score: {ma_scores[-1]:.2f}, epsilon: {epsilon:.3f}")
 
         if save:
-            plotting.save_plot(iterations, ma_scores, name)
+            plotting.save_plot(iterations, scores, ma_scores, losses, epsilons, name)
             torch.save(model, 'results/'+name+'/'+name+'_'+str(i)+'.pth')
             save = False
 
@@ -167,7 +170,7 @@ except KeyboardInterrupt:
     print(f"\nInterrupted at iteration {i}. Saving model...")
 
 # end of training, save the model, the training logs and a plot
-plotting.save_plot(iterations, ma_scores, name)
+plotting.save_plot(iterations, scores, ma_scores, losses, epsilons, name)
 #plotting.save_data(iterations, scores, av_Qs, losses, name)
 torch.save(model, 'results/'+name+'/'+name+'.pth')
 print('Done.')

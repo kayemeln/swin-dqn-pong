@@ -15,16 +15,29 @@ def save_data(iterations, scores, average_Qs, losses, name):
     np.savetxt('results/'+name+'/'+name+'_data.txt', data, delimiter=';', header='iteration;score;average_Q;loss')
 
 
-def save_plot(iterations, var, name, y_label='Score', i='Done'):
+def save_plot(iterations, scores, ma_scores, losses, epsilons, name, i='Done'):
     """
-    This function can be used to save a plot of the model's performance. 
+    This function saves training summary plot
     """
-    plt.clf()
-    plt.title('Training...')
-    plt.xlabel('Number of Iterations')
-    plt.ylabel(y_label)
-    plt.plot(iterations, var)
+    fig, axes = plt.subplots(3, 1, figsize=(10, 9), sharex=True)
+    fig.suptitle('Training Progress')
+
+    axes[0].plot(iterations, scores, alpha=0.3, color='steelblue', label='Episode score')
+    axes[0].plot(iterations, ma_scores, color='steelblue', label='MA-100')
+    axes[0].set_ylabel('Score')
+    axes[0].legend(loc='upper left')
+
+    axes[1].plot(iterations, losses, color='crimson')
+    axes[1].set_ylabel('Loss')
+
+    axes[2].plot(iterations, epsilons, color='forestgreen')
+    axes[2].set_ylabel('Epsilon')
+    axes[2].set_ylim(0, 1)
+    axes[2].set_xlabel('Iteration')
+
+    plt.tight_layout()
     plt.savefig('results/'+name+'/'+name+'_'+str(i))
+    plt.close(fig)
 
 
 def plot_epsilon(initial_epsilon=1., min_epsilon=0.1, min_epsilon_iteration=10**4):

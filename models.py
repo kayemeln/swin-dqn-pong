@@ -12,6 +12,8 @@ import numpy as np
 from torch.nn import CrossEntropyLoss, Dropout, Softmax, Linear, Conv2d, LayerNorm
 from torch.nn.modules.utils import _pair
 
+from transformers import SwinConfig, SwinModel
+
 class PlaceholderModel(torch.nn.Module):
     """
     Class used to construct a placeholder model, which returns random actions and can be used to troubleshoot the training code.
@@ -257,3 +259,31 @@ class VisionTransformer(nn.Module):
         #    return loss
         #else:
         #    return logits, attn_weights
+
+
+"""
+    SWIN Transformer Implementation
+"""
+
+class SwinDQN(nn.Module):
+    def __init__(self, num_channels, num_actions):
+        super(SwinDQN, self).__init__()
+
+        config = SwinConfig(
+                image_size=84,
+                patch_size=3,
+                num_channels=num_channels,
+                embed_dim=96,
+                depths=[2, 3, 2],
+                num_heads=[3, 3, 6],
+                window_size=7,
+                mlp_ratio=4,
+                drop_path_rate=0.1
+        )
+        self.swin = SwinModel(config)
+        self.head = nn.Linear(384, num_actions)
+
+    def forward(self, x):
+        x = x.float() / 255.0
+        x = self.swin(x).pooler_output
+        return self.head(x)
