@@ -19,7 +19,7 @@ import numpy as np
 # ----- SETTINGS ----- #
 
 # interface & runtime
-name = "CNN_3"
+name = "ViT_1"
 load_model = None  # set to a .pth path to resume training, e.g. 'results/CNN_2/CNN_2_100000.pth'
 render = False
 n_iterations = int(1e7)
