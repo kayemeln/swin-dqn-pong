@@ -78,6 +78,9 @@ These were both trained for the same period of time, demonstrating how the Swin 
 - [Deep Reinforcement Learning with SWIN Transformers](https://dl.acm.org/doi/10.1145/3653876.3653899)
 - [Medium Article using ViT to play Pong](https://pub.aimind.so/playing-pong-with-vision-transformer-dd8818b2ccba)
 
+- [Improving Sample Efficiency of Value Based Models Using Attention and Vision Transformers](https://arxiv.org/abs/2202.00710)
+    - This is similar to the Swin Transformer paper, but uses the ViT instead. Perhaps we should take inspiration from their architecture.
+
 ---
 
 We are thinking of using the [Arcade Learning Environment with Tetris](https://ale.farama.org/environments/tetris/)
