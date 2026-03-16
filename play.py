@@ -46,7 +46,7 @@ score = 0
 
 while True:
     output = model(torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(device))
-    action = actions.get_action(output, epsilon=0)
+    action = actions.get_action(output, epsilon=0.0)
 
     next_state, reward, terminated, truncated, info = env.step(torch.argmax(action).item())
     if truncated: terminated = True
