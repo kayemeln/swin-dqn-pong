@@ -56,6 +56,8 @@ These were both trained for the same period of time, demonstrating how the Swin 
 - RLCard, https://rlcard.org/
 - RLCard git, https://github.com/datamllab/rlcard
 
+- [Reinforcement Learning Tutorial with Demo](https://github.com/omerbsezer/Reinforcement_learning_tutorial_with_demo)
+
 #### [tmlr](https://github.com/trackmania-rl/tmrl) - "a fully-fledged distributed RL framework for robotics, designed to help you train Deep Reinforcement Learning AIs in real-time applications"
 - This is a pretty cool framework which was originally made for playing Trackmania. He has some nice videos demonstrating it being put to use.
 - While Trackmania would be a cool game for us to work on, I think it could be a little out of our depth.
