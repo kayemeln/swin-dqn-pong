@@ -50,6 +50,7 @@ if load_model:
 else:
 #    model = models.VisionTransformer(img_size=states.img_size[0], n_frames=states.n_frames, num_actions=actions.n_actions)
     model = models.SwinDQN(states.n_frames, actions.n_actions)
+#    model = models.ConvModel(states.img_size, states.n_frames, actions.n_actions)
 target_model = copy.deepcopy(model)
 target_model.eval()
 
