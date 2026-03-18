@@ -15,15 +15,18 @@ def save_data(iterations, scores, average_Qs, losses, name):
     np.savetxt('results/'+name+'/'+name+'_data.txt', data, delimiter=';', header='iteration;score;average_Q;loss')
 
 
-def save_plot(iterations, scores, ma_scores, losses, epsilons, name, i='Done'):
+def save_plot(iterations, scores, losses, epsilons, name, i='Done',
+              eval_iterations=None, eval_scores=None, eval_ma_scores=None):
     """
     This function saves training summary plot
     """
     fig, axes = plt.subplots(3, 1, figsize=(10, 9), sharex=True)
     fig.suptitle('Training Progress')
 
-    axes[0].plot(iterations, scores, alpha=0.3, color='steelblue', label='Episode score')
-    axes[0].plot(iterations, ma_scores, color='steelblue', label='MA-100')
+    axes[0].plot(iterations, scores, alpha=0.3, color='steelblue', label='Train score')
+    if eval_iterations and eval_scores:
+        axes[0].plot(eval_iterations, eval_scores, alpha=0.3, color='darkorange', label='Eval score')
+        axes[0].plot(eval_iterations, eval_ma_scores, color='darkorange', label='Eval MA-10')
     axes[0].set_ylabel('Score')
     axes[0].legend(loc='upper left')
 

@@ -23,3 +23,5 @@ figures/
 # No Claude allowed
 CLAUDE.md
 .claude
+
+*.png

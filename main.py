@@ -9,7 +9,7 @@ For faster training, 'quick_train.py' can be used.
 
 import gymnasium as gym
 import ale_py
-import torch, random, os, copy
+import torch, random, os, copy, csv
 from collections import deque
 from functools import partial
 import models, states, actions, plotting
@@ -19,7 +19,7 @@ import numpy as np
 # ----- SETTINGS ----- #
 
 # interface & runtime
-name = "Swin_1"
+name = "CNN_4"
 load_model = None  # set to a .pth path to resume training, e.g. 'results/CNN_2/CNN_2_100000.pth'
 render = False
 n_iterations = int(1e7)
@@ -42,15 +42,17 @@ epsilon_fn = partial(actions.epsilon,
 learning_rate = 1e-4
 discount = 0.99
 replay_start_size = 10000        # fill replay buffer before training
-target_update_freq = 1000        # how often to sync target network
+target_update_freq = 10000        # how often to sync target network
+eval_every = 10                  # run evaluation every N training episodes
+eval_episodes = 2                # number of greedy evaluation episodes
 
 if load_model:
     model = torch.load(load_model, map_location='cpu', weights_only=False)
     print(f"Loaded model from {load_model}")
 else:
 #    model = models.VisionTransformer(img_size=states.img_size[0], n_frames=states.n_frames, num_actions=actions.n_actions)
-    model = models.SwinDQN(states.n_frames, actions.n_actions)
-#    model = models.ConvModel(states.img_size, states.n_frames, actions.n_actions)
+#    model = models.SwinDQN(states.n_frames, actions.n_actions)
+    model = models.ConvModel(states.img_size, states.n_frames, actions.n_actions)
 target_model = copy.deepcopy(model)
 target_model.eval()
 
@@ -71,15 +73,47 @@ model.to(device)
 target_model.to(device)
 
 # initialize storage
-D = deque(maxlen=10**5)
-iterations, scores, ma_scores, losses, epsilons, av_Qs = [], [], [], [], [], []
+D = deque(maxlen=10**6)
+iterations, scores, losses, epsilons = [], [], [], []
+eval_iterations, eval_scores, eval_ma_scores = [], [], []
 if not os.path.exists('results/'+name): os.makedirs('results/'+name)  # create a folder to store the results
+
+# open CSV log file
+csv_file = open('results/'+name+'/'+name+'_log.csv', 'w', newline='')
+csv_writer = csv.writer(csv_file)
+csv_writer.writerow(['iteration', 'type', 'score', 'ma_score', 'loss', 'epsilon'])
+
+
+def run_eval_episodes(model, n_episodes):
+    """Run n_episodes with greedy policy (epsilon=0) and return the average score."""
+    eval_env = gym.make("ALE/Pong-v5", render_mode=None)
+    eval_env = states.modify_gym_env(eval_env)
+    total_score = 0
+    for _ in range(n_episodes):
+        s, _ = eval_env.reset()
+        done = False
+        ep_score = 0
+        while not done:
+            with torch.no_grad():
+                q = model(torch.tensor(s, dtype=torch.float32).unsqueeze(0).to(device))
+            a = actions.get_action(q, epsilon=0.0)
+            s, r, done, truncated, info = eval_env.step(torch.argmax(a).item())
+            if truncated: done = True
+            ep_score += r
+            if done and eval_env.unwrapped.ale.lives() > 0:
+                s, _ = eval_env.reset()
+                done = False
+        total_score += ep_score
+    eval_env.close()
+    return total_score / n_episodes
+
 
 # set some variables for the loop
 terminated = True
 quit = False
 save = False
 train_step = 0
+episode_count = 0
 
 # ----- TRAINING LOOP ----- #
 
@@ -109,7 +143,6 @@ try:
             if terminated:
                 iterations += [i]
                 scores += [score]
-                ma_scores += [torch.mean(torch.tensor(scores[-100:])).item()]
                 losses += [0]
                 epsilons += [epsilon]
                 print(f"\rFilling replay buffer... ({len(D)}/{replay_start_size})")
@@ -156,14 +189,30 @@ try:
             # print/plot/save some important metrics
             iterations += [i]
             scores += [score]
-            ma_scores += [torch.mean(torch.tensor(scores[-100:])).item()]
-            losses += [torch.mean(torch.tensor(ep_loss)).item() if ep_loss else 0]
+            ep_loss_mean = torch.mean(torch.tensor(ep_loss)).item() if ep_loss else 0
+            losses += [ep_loss_mean]
             epsilons += [epsilon]
+            episode_count += 1
 
-            print(f"\rEnd of game (iteration {i}),episode_score: {score} ma_score: {ma_scores[-1]:.2f}, epsilon: {epsilon:.3f}")
+            csv_writer.writerow([i, 'train', score, '', f"{ep_loss_mean:.6f}", f"{epsilon:.4f}"])
+
+            print(f"\rEnd of game (iteration {i}), score: {score}, epsilon: {epsilon:.3f}")
+
+            # run greedy evaluation episodes periodically
+            if episode_count % eval_every == 0:
+                model.eval()
+                avg_eval_score = run_eval_episodes(model, eval_episodes)
+                model.train()
+                eval_iterations += [i]
+                eval_scores += [avg_eval_score]
+                eval_ma_scores += [torch.mean(torch.tensor(eval_scores[-10:])).item()]
+                csv_writer.writerow([i, 'eval', avg_eval_score, f"{eval_ma_scores[-1]:.4f}", '', ''])
+                csv_file.flush()
+                print(f"  [EVAL] avg greedy score: {avg_eval_score:.1f}, eval MA-10: {eval_ma_scores[-1]:.2f}")
 
         if save:
-            plotting.save_plot(iterations, scores, ma_scores, losses, epsilons, name)
+            plotting.save_plot(iterations, scores, losses, epsilons, name,
+                               eval_iterations=eval_iterations, eval_scores=eval_scores, eval_ma_scores=eval_ma_scores)
             torch.save(model, 'results/'+name+'/'+name+'_'+str(i)+'.pth')
             save = False
 
@@ -171,7 +220,8 @@ except KeyboardInterrupt:
     print(f"\nInterrupted at iteration {i}. Saving model...")
 
 # end of training, save the model, the training logs and a plot
-plotting.save_plot(iterations, scores, ma_scores, losses, epsilons, name)
-#plotting.save_data(iterations, scores, av_Qs, losses, name)
+plotting.save_plot(iterations, scores, ma_scores, losses, epsilons, name,
+                   eval_iterations=eval_iterations, eval_scores=eval_scores, eval_ma_scores=eval_ma_scores)
 torch.save(model, 'results/'+name+'/'+name+'.pth')
+csv_file.close()
 print('Done.')
