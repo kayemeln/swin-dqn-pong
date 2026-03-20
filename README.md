@@ -31,17 +31,19 @@ If you want to see how your model is performing with the human eye run the `play
 python play.py path/to/model.pth
 ```
 
-### Current Results
+### (Updated) Current Results
 
-These are our results as of 16/03/26. The figures below show the moving average with window size 100 of the episode scores, along with the scores for each episode, the training loss and the epsilon value.
+These are our results as of 20/03/26. The figures below show the moving eval score averages with window size 10, along with the scores for each episode, the training loss and the epsilon value.
 
-These were both trained for the same period of time, demonstrating how the Swin model takes significantly longer to train.
+The eval score is calculated by following a greedy policy on the current Q-model.
+
+The CNN training was ended as it didn't seem to be improving. The Swin model is still undergoing training.
 
 ### CNN
-![CNN Training for 2.5 million iterations](images/CNN-25e5-iterations.png)
+![CNN Training for 8 million iterations](images/CNN-8e6-iterations.png)
 
 ### Swin Transformer
-![Swin Training for 800,000 iterations](images/Swin-8e5-iterations.png)
+![Swin Training for 2.7 million iterations](images/Swin-27e5-iterations.png)
 
 ## Ideas and Reading
 
