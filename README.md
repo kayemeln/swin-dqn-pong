@@ -33,17 +33,17 @@ python play.py path/to/model.pth
 
 ### (Updated) Current Results
 
-These are our results as of 20/03/26. The figures below show the moving eval score averages with window size 10, along with the scores for each episode, the training loss and the epsilon value.
+These are our results as of 24/03/26. The figures below show the moving eval score averages with window size 10, along with the scores for each episode, the training loss and the epsilon value.
 
 The eval score is calculated by following a greedy policy on the current Q-model.
 
-The CNN training was ended as it didn't seem to be improving. The Swin model is still undergoing training.
+Both were stopped at 8 million iterations since it seemed neither was improving. The CNN reached a maximum MA score of ~12.5, while the Swin reached a maximum MA score of ~14.
 
 ### CNN
 ![CNN Training for 8 million iterations](images/CNN-8e6-iterations.png)
 
 ### Swin Transformer
-![Swin Training for 2.7 million iterations](images/Swin-27e5-iterations.png)
+![Swin Training for 8 million iterations](images/Swin-8e6-iterations.png)
 
 ## Ideas and Reading
 
