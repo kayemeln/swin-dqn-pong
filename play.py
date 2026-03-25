@@ -1,11 +1,3 @@
-"""
-Watch a trained model play Pong.
-
-Usage:
-    python play.py path/to/model.pth
-    python play.py results/CNN_2/CNN_2_100000.pth
-"""
-
 import sys
 import time
 import torch
@@ -35,7 +27,7 @@ print(f"Loaded model from {model_path} (device: {device})")
 
 # ----- INITIALIZATION ----- #
 
-env = gym.make("ALE/Pong-v5", render_mode='human')
+env = gym.make("PongNoFrameskip-v4", render_mode='human')
 env = states.modify_gym_env(env)
 env.metadata['render_fps'] = 60
 

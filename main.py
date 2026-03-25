@@ -1,12 +1,3 @@
-"""
-This file is used to train a model according to the Reinforcement Learning loop.
-Hyperparameters can be chosen under 'settings', and some code to inspect the states is included as comments.
-This code will periodically save the model along with some performance metrics, so different stages can later be compared.
-
-'demo.py' can be used to see the model playing the game.
-For faster training, 'quick_train.py' can be used.
-"""
-
 import gymnasium as gym
 import ale_py
 import torch, random, os, copy, csv
@@ -42,9 +33,10 @@ epsilon_fn = partial(actions.epsilon,
 learning_rate = 1e-4
 discount = 0.99
 replay_start_size = 10000        # fill replay buffer before training
-target_update_freq = 10000        # how often to sync target network
+target_update_freq = 1000        # how often to sync target network
 eval_every = 10                  # run evaluation every N training episodes
 eval_episodes = 2                # number of greedy evaluation episodes
+update_frequency = 4
 
 if load_model:
     model = torch.load(load_model, map_location='cpu', weights_only=False)
@@ -63,7 +55,7 @@ loss_fn = torch.nn.MSELoss()
 # ----- INITIALIZATION ----- #
 
 # initialize the environment
-env = gym.make("ALE/Pong-v5", render_mode=('human' if render else None))
+env = gym.make("PongNoFrameskip-v4", render_mode=('human' if render else None))
 env = states.modify_gym_env(env)  # activate the preprocessing functions
 env.metadata['render_fps'] = 60  # only used if render=True
 
@@ -73,7 +65,7 @@ model.to(device)
 target_model.to(device)
 
 # initialize storage
-D = deque(maxlen=10**6)
+D = deque(maxlen=10**4)
 iterations, scores, losses, epsilons = [], [], [], []
 eval_iterations, eval_scores, eval_ma_scores = [], [], []
 if not os.path.exists('results/'+name): os.makedirs('results/'+name)  # create a folder to store the results
@@ -150,32 +142,33 @@ try:
 
         train_step += 1
 
-        # step 3: create a minibatch for learning
-        minibatch = random.sample(D, min(len(D), minibatch_size))
-        states_batch, actions_batch, rewards_batch, next_states_batch, terminations_batch = tuple([*zip(*minibatch)])
+        if i % update_frequency == 0:
+            # step 3: create a minibatch for learning
+            minibatch = random.sample(D, min(len(D), minibatch_size))
+            states_batch, actions_batch, rewards_batch, next_states_batch, terminations_batch = tuple([*zip(*minibatch)])
 
-        states_batch = torch.tensor(np.array(states_batch), dtype=torch.float32).to(device)
-        next_states_batch = torch.tensor(np.array(next_states_batch), dtype=torch.float32).to(device)
-        actions_batch = torch.stack(actions_batch).to(device)
-        rewards_batch = torch.tensor(rewards_batch, dtype=torch.float32).to(device)
-        terminations_batch = torch.tensor(terminations_batch, dtype=torch.float32).to(device)
+            states_batch = torch.tensor(np.array(states_batch), dtype=torch.float32).to(device)
+            next_states_batch = torch.tensor(np.array(next_states_batch), dtype=torch.float32).to(device)
+            actions_batch = torch.stack(actions_batch).to(device)
+            rewards_batch = torch.tensor(rewards_batch, dtype=torch.float32).to(device)
+            terminations_batch = torch.tensor(terminations_batch, dtype=torch.float32).to(device)
 
-        # step 4: compute learning targets using the TARGET network
-        with torch.no_grad():
-            target_q = target_model.forward(next_states_batch)
-            y_batch = rewards_batch + discount * torch.max(target_q, dim=1).values * (1 - terminations_batch)
+            # step 4: compute learning targets using the TARGET network
+            with torch.no_grad():
+                target_q = target_model.forward(next_states_batch)
+                y_batch = rewards_batch + discount * torch.max(target_q, dim=1).values * (1 - terminations_batch)
 
-        # step 5: optimize
-        optimizer.zero_grad()
-        y_pred = torch.sum(model.forward(states_batch) * actions_batch, dim=1)
-        loss = loss_fn(y_pred, y_batch)
-        if torch.isnan(loss):
-            print("Training failed")
-            quit = True
-            break
-        loss.backward()
-        optimizer.step()
-        ep_loss += [loss.item()]
+            # step 5: optimize
+            optimizer.zero_grad()
+            y_pred = torch.sum(model.forward(states_batch) * actions_batch, dim=1)
+            loss = loss_fn(y_pred, y_batch)
+            if torch.isnan(loss):
+                print("Training failed")
+                quit = True
+                break
+            loss.backward()
+            optimizer.step()
+            ep_loss += [loss.item()]
 
         # periodically update the target network
         if i % target_update_freq == 0:
@@ -220,7 +213,7 @@ except KeyboardInterrupt:
     print(f"\nInterrupted at iteration {i}. Saving model...")
 
 # end of training, save the model, the training logs and a plot
-plotting.save_plot(iterations, scores, ma_scores, losses, epsilons, name,
+plotting.save_plot(iterations, scores, losses, epsilons, name,
                    eval_iterations=eval_iterations, eval_scores=eval_scores, eval_ma_scores=eval_ma_scores)
 torch.save(model, 'results/'+name+'/'+name+'.pth')
 csv_file.close()

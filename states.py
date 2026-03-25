@@ -15,6 +15,12 @@ from stable_baselines3.common.atari_wrappers import(
     MaxAndSkipEnv,
     EpisodicLifeEnv,
     FireResetEnv,
+    WarpFrame
+)
+from gymnasium.wrappers import(
+    ResizeObservation,
+    GrayscaleObservation,
+    FrameStackObservation
 )
 
 img_size = (210, 160)  # original size of screen 
@@ -31,9 +37,9 @@ def modify_gym_env(env):
     env = EpisodicLifeEnv(env)
     env = FireResetEnv(env)
     env = ClipRewardEnv(env)
-    env = gym.wrappers.ResizeObservation(env, img_size)
-    env = gym.wrappers.GrayscaleObservation(env)
-    env = gym.wrappers.FrameStackObservation(env, n_frames)
+    env = ResizeObservation(env, img_size)
+    env = GrayscaleObservation(env)
+    env = FrameStackObservation(env, n_frames)
     return env
 
 
