@@ -38,9 +38,10 @@ terminated = False
 score = 0
 
 while True:
-    output = model(torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(device))
+    with torch.no_grad():
+        output = model(torch.tensor(state, dtype=torch.float32).unsqueeze(0).to(device))
     action = actions.get_action(output, epsilon=0.0)
-    print(f"Action: {torch.argmax(action).item()} | Time: {time.time():.4f}")
+    # print(f"Action: {torch.argmax(action).item()} | Time: {time.time():.4f}")
 
     next_state, reward, terminated, truncated, info = env.step(torch.argmax(action).item())
     if truncated: terminated = True

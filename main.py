@@ -10,7 +10,7 @@ import numpy as np
 # ----- SETTINGS ----- #
 
 # interface & runtime
-name = "CNN_4"
+name = "CNN_Tennis_NoFrameskip"
 load_model = None  # set to a .pth path to resume training, e.g. 'results/CNN_2/CNN_2_100000.pth'
 render = False
 n_iterations = int(1e7)
@@ -19,7 +19,7 @@ save_every = int(1e5)
 # preprocessing
 states.img_size = (84, 84)
 states.n_frames = 4
-actions.n_actions = 6
+actions.n_actions = 18
 minibatch_size = 32
 
 # randomness
@@ -55,7 +55,7 @@ loss_fn = torch.nn.MSELoss()
 # ----- INITIALIZATION ----- #
 
 # initialize the environment
-env = gym.make("PongNoFrameskip-v4", render_mode=('human' if render else None))
+env = gym.make("TennisNoFrameskip-v4", render_mode=('human' if render else None))
 env = states.modify_gym_env(env)  # activate the preprocessing functions
 env.metadata['render_fps'] = 60  # only used if render=True
 
@@ -78,7 +78,7 @@ csv_writer.writerow(['iteration', 'type', 'score', 'ma_score', 'loss', 'epsilon'
 
 def run_eval_episodes(model, n_episodes):
     """Run n_episodes with greedy policy (epsilon=0) and return the average score."""
-    eval_env = gym.make("ALE/Pong-v5", render_mode=None)
+    eval_env = gym.make("TennisNoFrameskip-v4", render_mode=None)
     eval_env = states.modify_gym_env(eval_env)
     total_score = 0
     for _ in range(n_episodes):

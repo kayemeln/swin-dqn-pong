@@ -8,6 +8,7 @@ venv/
 # Training artifacts
 results/
 *.pth
+!models/*.pth
 *.pkl
 
 # Generated figures
@@ -29,3 +30,5 @@ CLAUDE.md
 !images/*.png
 
 play_capture.py
+
+Multi-Agent-ALE/
