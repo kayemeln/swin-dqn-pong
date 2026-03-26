@@ -40,12 +40,18 @@ The eval score is calculated by following a greedy policy on the current Q-model
 Both were stopped at 8 million iterations since it seemed neither was improving. The CNN reached a maximum MA score of ~12.5, while the Swin reached a maximum MA score of ~14.
 
 ### CNN
-![CNN Training for 8 million iterations](images/CNN-8e6-iterations.png)
+![CNN Training for 8 million iterations](images/CNN-NoFrameskip-65e5-iterations.png)
 
 ### Swin Transformer
 ![Swin Training for 8 million iterations](images/Swin-8e6-iterations.png)
 
 ## Ideas and Reading
+
+### PettingZoo
+
+- [PettingZoo](https://pettingzoo.farama.org/) - An API Standard for multi-agent reinforcement learning
+- Install for Atari games using `pip install pettingzoo[atari]`
+
 
 ---
 
