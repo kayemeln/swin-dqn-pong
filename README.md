@@ -90,7 +90,8 @@ Both were stopped at 8 million iterations since it seemed neither was improving.
 
 - [Improving Sample Efficiency of Value Based Models Using Attention and Vision Transformers](https://arxiv.org/abs/2202.00710)
     - This is similar to the Swin Transformer paper, but uses the ViT instead. Perhaps we should take inspiration from their architecture.
-
+### Note on forward hooks for generating activation maps
+https://www.geeksforgeeks.org/deep-learning/what-are-pytorch-hooks-and-how-are-they-applied-in-neural-network-layers/ 
 ---
 
 We are thinking of using the [Arcade Learning Environment with Tetris](https://ale.farama.org/environments/tetris/)
