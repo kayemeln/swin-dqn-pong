@@ -50,6 +50,24 @@ The eval score is calculated by following a greedy policy on the current Q-model
 - [PettingZoo](https://pettingzoo.farama.org/) - An API Standard for multi-agent reinforcement learning
 - Install for Atari games using `pip install pettingzoo[atari]`
 
+### Activation Maps
+
+A few changes were made to the original `activation_maps.py` file:
+
+- Moved the forward hooks from indexes `{0, 2, 4}` of `model.conv_layers[]` to `{1, 3, 5}`
+    - This is because these indexes contain the ReLU modules, so we remove a lot of redundancy or noise
+- The `get_sample_input_from_env` function now takes an input sample from a random iteration number between 100-1000
+    - Just to get some variation and see some other activation maps
+    - Also added a `for` loop in the entry function which creates 3 figures
+- Added the argument `interpolation=cv2.INTER_NEAREST` to the `cv2.resize` functions within the `plot_comparison` function
+    - This removes the blending of pixels in our heatmaps and makes distinct boundaries between the features
+    - Also reduced `alpha` transparency to 0.4
+
+Here are some of the updated images:
+
+![activation maps 1](images/activation-maps-1.png)
+![activation maps 2](images/activation-maps-2.png)
+![activation maps 3](images/activation-maps-3.png)
 
 ---
 
