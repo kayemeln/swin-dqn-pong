@@ -1,1 +1,34 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
 venv/
+.venv/
+
+# Training artifacts
+results/
+*.pth
+!models/*.pth
+*.pkl
+
+# Generated figures
+figures/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+
+# No Claude allowed
+CLAUDE.md
+.claude
+
+*.png
+!captures/*.png
+!images/*.png
+
+play_capture.py
+
+Multi-Agent-ALE/
