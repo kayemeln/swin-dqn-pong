@@ -41,14 +41,10 @@ The eval score is calculated by following a greedy policy on the current Q-model
 ![CNN Training for 6.5 million iterations](images/CNN-NoFrameskip-65e5-iterations.png)
 
 ### Swin Transformer
-![Swin Training for 8 million iterations](images/Swin-NoFrameskip-7e6-iterations.png)
+![Swin Training for 10 million iterations](images/Swin-NoFrameskip-10e6-iterations.png)
 
-## Ideas and Reading
-
-### PettingZoo
-
-- [PettingZoo](https://pettingzoo.farama.org/) - An API Standard for multi-agent reinforcement learning
-- Install for Atari games using `pip install pettingzoo[atari]`
+### Comparison
+![Comparing both models](images/CNN-vs-Swin-NoFrameskip.png)
 
 ### Activation Maps
 
@@ -68,6 +64,13 @@ Here are some of the updated images:
 ![activation maps 1](images/activation-maps-1.png)
 ![activation maps 2](images/activation-maps-2.png)
 ![activation maps 3](images/activation-maps-3.png)
+
+## Ideas and Reading
+
+### PettingZoo
+
+- [PettingZoo](https://pettingzoo.farama.org/) - An API Standard for multi-agent reinforcement learning
+- Install for Atari games using `pip install pettingzoo[atari]`
 
 ---
 
