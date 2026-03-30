@@ -32,7 +32,7 @@ epsilon_fn = partial(actions.epsilon,
 # training & model
 learning_rate = 1e-4
 discount = 0.99
-replay_start_size = 10000        # fill replay buffer before training
+replay_start_size = 80000        # fill replay buffer before training
 target_update_freq = 1000        # how often to sync target network
 eval_every = 10                  # run evaluation every N training episodes
 eval_episodes = 2                # number of greedy evaluation episodes
@@ -65,7 +65,7 @@ model.to(device)
 target_model.to(device)
 
 # initialize storage
-D = deque(maxlen=10**4)
+D = deque(maxlen=10**6)
 iterations, scores, losses, epsilons = [], [], [], []
 eval_iterations, eval_scores, eval_ma_scores = [], [], []
 if not os.path.exists('results/'+name): os.makedirs('results/'+name)  # create a folder to store the results
@@ -153,10 +153,12 @@ try:
             rewards_batch = torch.tensor(rewards_batch, dtype=torch.float32).to(device)
             terminations_batch = torch.tensor(terminations_batch, dtype=torch.float32).to(device)
 
-            # step 4: compute learning targets using the TARGET network
+            # step 4: compute learning targets using Double DQN
             with torch.no_grad():
+                online_q = model.forward(next_states_batch)
+                best_actions = torch.argmax(online_q, dim=1)
                 target_q = target_model.forward(next_states_batch)
-                y_batch = rewards_batch + discount * torch.max(target_q, dim=1).values * (1 - terminations_batch)
+                y_batch = rewards_batch + discount * target_q.gather(1, best_actions.unsqueeze(1)).squeeze(1) * (1 - terminations_batch)
 
             # step 5: optimize
             optimizer.zero_grad()

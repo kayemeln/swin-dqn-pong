@@ -20,7 +20,8 @@ from stable_baselines3.common.atari_wrappers import(
 from gymnasium.wrappers import(
     ResizeObservation,
     GrayscaleObservation,
-    FrameStackObservation
+    FrameStackObservation,
+    TimeLimit
 )
 
 img_size = (210, 160)  # original size of screen 
@@ -34,6 +35,7 @@ def modify_gym_env(env):
     global img_size, n_frames
     env = NoopResetEnv(env, noop_max=30)
     env = MaxAndSkipEnv(env, skip=4)
+    env = TimeLimit(env, max_episode_steps=24000)  # prevent infinite episodes when agent can't serve
     env = EpisodicLifeEnv(env)
     env = FireResetEnv(env)
     env = ClipRewardEnv(env)
