@@ -1,19 +1,24 @@
 # Advanced AI
 
 ## Pong Agent
-tryna get this thang to learn pong
+If you're tryna get this thang to learn pong
 
 ---
 
 Try this to run it:
 
-- Create a Python venv:
+- Create a Python or conda virtual environment:
 ```
 python -m venv venv
+```
+or 
+```
+conda create venv 
 ```
 - Activate that venv (you might have to do it differently if you're on Windows):
 ```
 source venv/bin/activate
+conda activate venv
 ```
 - Install the dependencies from `requirements.txt`:
 ```
@@ -31,6 +36,18 @@ If you want to see how your model is performing with the human eye run the `play
 python play.py path/to/model.pth
 ```
 
+
+## PettingZoo - If you want the models to play against each other.
+Disclaimer, this is particularly difficult to get working and can be quite slow, especially at the beginning. It took numerous attempts for us to get it working ourselves and would not work on a windows laptop entirely. Probably not worth trying but if you are interested in getting it to work. 
+
+- [PettingZoo](https://pettingzoo.farama.org/) - An API Standard for multi-agent reinforcement learning
+Within the same virtual environment as before, install for Atari games using
+```
+pip install pettingzoo[atari]
+```
+
+
+- 
 ### (Updated) Current Results
 
 These are our results as of 24/03/26. The figures below show the moving eval score averages with window size 10, along with the scores for each episode, the training loss and the epsilon value.
@@ -66,11 +83,6 @@ Here are some of the updated images:
 ![activation maps 3](images/activation-maps-3.png)
 
 ## Ideas and Reading
-
-### PettingZoo
-
-- [PettingZoo](https://pettingzoo.farama.org/) - An API Standard for multi-agent reinforcement learning
-- Install for Atari games using `pip install pettingzoo[atari]`
 
 ---
 
