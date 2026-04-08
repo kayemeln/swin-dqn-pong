@@ -1,14 +1,18 @@
 import gymnasium as gym
 import ale_py
-import torch, random, os, copy
+import torch, random, os, copy, argparse
 from collections import deque
 from functools import partial
 import models, states, actions, plotting
 import numpy as np
 
+parser = argparse.ArgumentParser()
+parser.add_argument("--name", type=str, default="DQN_Pong", help="Run name for saving results")
+parser.add_argument("--model", type=str, default="CNN", choices=["CNN", "Swin"], help="Model architecture")
+args = parser.parse_args()
 
 # interface & runtime
-name = "CNN_Tennis_NoFrameskip"
+name = args.name
 # Optional to load model to train a pre-trained model
 load_model = None  # set to a .pth path to resume training, e.g. 'results/CNN_2/CNN_2_100000.pth'
 render = False
@@ -41,9 +45,10 @@ if load_model:
     model = torch.load(load_model, map_location='cpu', weights_only=False)
     print(f"Loaded model from {load_model}")
 else:
-#    model = models.VisionTransformer(img_size=states.img_size[0], n_frames=states.n_frames, num_actions=actions.n_actions)
-#    model = models.SwinDQN(states.n_frames, actions.n_actions)
-    model = models.ConvModel(states.img_size, states.n_frames, actions.n_actions)
+    if args.model == "CNN":
+        model = models.ConvModel(states.img_size, states.n_frames, actions.n_actions)
+    elif args.model == "Swin":
+        model = models.SwinDQN(states.n_frames, actions.n_actions)
 target_model = copy.deepcopy(model)
 target_model.eval()
 
