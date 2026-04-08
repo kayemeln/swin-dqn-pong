@@ -1,252 +1,312 @@
 """
-play.py — Pit two DQN Pong models against each other using PettingZoo.
-
-Both models were trained in single-agent Gymnasium (ALE/Pong), where the agent
-controls the RIGHT paddle. In PettingZoo's pong_v3:
-  - first_0  = LEFT  paddle
-  - second_0 = RIGHT paddle
-
-So second_0 sees observations that already match training. For first_0 we
-horizontally flip the frame (so the model "sees" itself on the right) and
-swap left/right actions in the output.
-
-Preprocessing replicates the SB3 Atari wrapper chain:
-  MaxAndSkipEnv(skip=4)  → max of last 2 raw frames, repeat action 4 times
-  GrayscaleObservation   → single channel
-  ResizeObservation(84)  → 84×84
-  FrameStack(4)          → stack last 4 processed frames
+Arena training: two pre-trained models play Pong against each other and
+continue learning via Double DQN.
 
 Usage:
-    python play.py model_first0.pth model_second0.pth
+    python arena_2.py <right_model.pth> <left_model.pth> [--render] [--name NAME]
+
+first_0 is the RIGHT paddle, second_0 is the LEFT paddle.
+The left agent receives horizontally flipped observations so both models
+see the game from the right-paddle perspective (matching single-player training).
 """
 
 import sys
+import os
 import time
+import copy
+import csv
+import random
+import argparse
+import collections
 import numpy as np
 import torch
-import cv2
-from collections import deque
 from pettingzoo.atari import pong_v3
-
-# ── Config ──────────────────────────────────────────────────────────────────
-IMG_SIZE = (84, 84)
-N_FRAMES = 4
-FRAME_SKIP = 4          # same as MaxAndSkipEnv(skip=4)
-N_ACTIONS = 6           # Pong minimal action space
-
-# Action mapping: swap left ↔ right for the flipped (left-side) agent.
-# PettingZoo Pong actions: 0=NOOP, 1=FIRE, 2=RIGHT, 3=LEFT, 4=FIRE_RIGHT, 5=FIRE_LEFT
-FLIP_ACTION_MAP = {
-    0: 0,  # NOOP  → NOOP
-    1: 1,  # FIRE  → FIRE
-    2: 3,  # RIGHT → LEFT
-    3: 2,  # LEFT  → RIGHT
-    4: 5,  # FIRE_RIGHT → FIRE_LEFT
-    5: 4,  # FIRE_LEFT  → FIRE_RIGHT
-}
+import supersuit as ss
+import plotting
 
 
-# ── Preprocessing helpers ───────────────────────────────────────────────────
-def preprocess_frame(frame: np.ndarray) -> np.ndarray:
-    """Convert a raw (210, 160, 3) RGB frame to (84, 84) grayscale uint8."""
-    gray = cv2.cvtColor(frame, cv2.COLOR_RGB2GRAY)
-    resized = cv2.resize(gray, (IMG_SIZE[1], IMG_SIZE[0]), interpolation=cv2.INTER_AREA)
-    return resized
+# ---------- CLI ---------- #
+
+parser = argparse.ArgumentParser()
+parser.add_argument("right_model", help="Path to model for right paddle (first_0)")
+parser.add_argument("left_model", help="Path to model for left paddle (second_0)")
+parser.add_argument("--render", action="store_true")
+parser.add_argument("--name", default="Arena")
+args = parser.parse_args()
 
 
-def flip_frame(frame: np.ndarray) -> np.ndarray:
-    """Horizontally flip a frame so a left-side agent sees itself on the right."""
-    return np.flip(frame, axis=-1).copy()  # flip width axis
+# ---------- SETTINGS ---------- #
+
+n_iterations = int(1e7)
+save_every = int(1e5)
+learning_rate = 1e-4
+discount = 0.99
+replay_start_size = 10_000
+minibatch_size = 32
+target_update_freq = 1000
+update_frequency = 4
+initial_epsilon = 0.01        # low — models are pre-trained
+min_epsilon = 0.01
+min_epsilon_iteration = 100_000
+n_actions = 6                 # PongNoFrameskip action space
+
+ACTION_FIRE = 1
+RIGHT_AGENT = "first_0"
+LEFT_AGENT = "second_0"
 
 
-class FrameStacker:
-    """
-    Maintains a per-agent rolling stack of N_FRAMES preprocessed frames,
-    replicating gymnasium.wrappers.FrameStackObservation.
-    Also replicates MaxAndSkipEnv's max-of-last-2-raw-frames logic.
-    """
+# ---------- HELPERS ---------- #
 
-    def __init__(self):
-        self.stacks: dict[str, deque] = {}
-        self.raw_buffers: dict[str, list] = {}     # last 2 raw obs per agent
-
-    def reset(self, observations: dict[str, np.ndarray]) -> dict[str, np.ndarray]:
-        """Initialise stacks from the first observation dict."""
-        self.stacks = {}
-        self.raw_buffers = {}
-        result = {}
-        for agent, obs in observations.items():
-            frame = preprocess_frame(obs)
-            self.stacks[agent] = deque([frame] * N_FRAMES, maxlen=N_FRAMES)
-            self.raw_buffers[agent] = [obs, obs]
-            result[agent] = np.stack(list(self.stacks[agent]), axis=0)  # (4, 84, 84)
-        return result
-
-    def push_raw(self, agent: str, raw_obs: np.ndarray):
-        """Buffer a raw frame for max-pooling (call once per emulator step)."""
-        if agent not in self.raw_buffers:
-            self.raw_buffers[agent] = [raw_obs, raw_obs]
-        else:
-            self.raw_buffers[agent][0] = self.raw_buffers[agent][1]
-            self.raw_buffers[agent][1] = raw_obs
-
-    def step(self, agent: str) -> np.ndarray:
-        """
-        Max-pool the last 2 raw frames, preprocess, push onto the stack,
-        and return the current (4, 84, 84) observation.
-        """
-        maxed = np.maximum(self.raw_buffers[agent][0], self.raw_buffers[agent][1])
-        frame = preprocess_frame(maxed)
-        self.stacks[agent].append(frame)
-        return np.stack(list(self.stacks[agent]), axis=0)  # (4, 84, 84)
+def epsilon_fn(step):
+    return max(min_epsilon,
+               initial_epsilon - (initial_epsilon - min_epsilon) * step / min_epsilon_iteration)
 
 
-# ── Model inference ─────────────────────────────────────────────────────────
-@torch.no_grad()
-def select_action(model, stacked_obs: np.ndarray, device: torch.device) -> int:
-    """
-    Feed a (4, 84, 84) uint8 observation through the DQN and return the
-    greedy action (argmax of Q-values).
-    """
-    tensor = torch.tensor(stacked_obs, dtype=torch.float32, device=device).unsqueeze(0)
-    # If your training normalised pixels to [0, 1], uncomment the next line:
-    # tensor /= 255.0
-    q_values = model(tensor)
-    return int(q_values.argmax(dim=-1).item())
+def make_env(render):
+    env = pong_v3.env(render_mode="human" if render else None)
+    env = ss.frame_skip_v0(env, 4)
+    env = ss.color_reduction_v0(env, mode="B")
+    env = ss.resize_v1(env, x_size=84, y_size=84)
+    env = ss.dtype_v0(env, dtype=np.float32)
+    return env
 
 
-# ── Main loop ───────────────────────────────────────────────────────────────
-def main():
-    if len(sys.argv) < 3:
-        print("Usage: python play.py <model_first0.pth> <model_second0.pth>")
-        sys.exit(1)
+def fresh_frame_buffers():
+    return {
+        RIGHT_AGENT: collections.deque([np.zeros((84, 84), dtype=np.float32)] * 4, maxlen=4),
+        LEFT_AGENT:  collections.deque([np.zeros((84, 84), dtype=np.float32)] * 4, maxlen=4),
+    }
 
-    model_path_1 = sys.argv[1]   # model for first_0  (left paddle)
-    model_path_2 = sys.argv[2]   # model for second_0 (right paddle)
 
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model1 = torch.load(model_path_1, weights_only=False, map_location=device)
-    model2 = torch.load(model_path_2, weights_only=False, map_location=device)
-    model1.eval()
-    model2.eval()
+def get_stacked(frame_buffers, agent, obs, flip=False):
+    """Append obs to the agent's frame buffer and return a (4,84,84) stack."""
+    frame_buffers[agent].append(obs)
+    stacked = np.stack(list(frame_buffers[agent]), axis=0)
+    if flip:
+        stacked = np.flip(stacked, axis=-1).copy()
+    return stacked
 
-    models = {}    # filled after reset when we know agent names
 
-    # ── Create environment (AEC API for fine-grained stepping) ──────────
-    env = pong_v3.env(render_mode="human")
-    env.reset(seed=42)
+def select_action(model, stacked_obs, epsilon, device):
+    """Epsilon-greedy action selection, returns (action_index, one_hot)."""
+    if random.random() < epsilon:
+        idx = random.randint(0, n_actions - 1)
+    else:
+        with torch.no_grad():
+            q = model(torch.tensor(stacked_obs, dtype=torch.float32).unsqueeze(0).to(device))
+            idx = torch.argmax(q, dim=1).item()
+    one_hot = torch.zeros(n_actions)
+    one_hot[idx] = 1
+    return idx, one_hot
 
-    stacker = FrameStacker()
 
-    # Collect initial observations via the AEC API
-    initial_obs = {}
-    for agent in env.agents:
-        obs, _, _, _, _ = env.last()
-        initial_obs[agent] = obs
-        env.step(0)  # NOOP to advance to next agent
+def train_step(model, target_model, optimizer, loss_fn, replay_buffer, device):
+    """One Double-DQN gradient step. Returns loss value."""
+    batch = random.sample(replay_buffer, minibatch_size)
+    states_b, actions_b, rewards_b, next_states_b, dones_b = zip(*batch)
 
-    # Reset the env properly now that we have agent names
-    env.reset(seed=42)
-    initial_obs = {}
-    for agent in env.agents:
-        obs, _, _, _, _ = env.last()
-        initial_obs[agent] = obs
-        env.step(0)
+    states_b = torch.tensor(np.array(states_b), dtype=torch.float32).to(device)
+    next_states_b = torch.tensor(np.array(next_states_b), dtype=torch.float32).to(device)
+    actions_b = torch.stack(actions_b).to(device)
+    rewards_b = torch.tensor(rewards_b, dtype=torch.float32).to(device)
+    dones_b = torch.tensor(dones_b, dtype=torch.float32).to(device)
 
-    models = {"first_0": model1, "second_0": model2}
-    stacked = stacker.reset(initial_obs)
+    with torch.no_grad():
+        best_actions = torch.argmax(model(next_states_b), dim=1)
+        target_q = target_model(next_states_b)
+        y = rewards_b + discount * target_q.gather(1, best_actions.unsqueeze(1)).squeeze(1) * (1 - dones_b)
 
-    # Auto-fire: models were trained with FireResetEnv, so they never learned
-    # to press FIRE to serve the ball. We force FIRE for a few steps after each
-    # point is scored (detected via non-zero reward).
-    FIRE_ACTION = 1
-    AUTO_FIRE_STEPS = 2  # number of steps to force FIRE after a point
-    fire_counter = {agent: AUTO_FIRE_STEPS for agent in env.agents}  # fire at game start
+    y_pred = torch.sum(model(states_b) * actions_b, dim=1)
+    loss = loss_fn(y_pred, y)
 
-    # Frame rate control
-    TARGET_FPS = 120
-    frame_time = 1.0 / TARGET_FPS
+    optimizer.zero_grad()
+    loss.backward()
+    optimizer.step()
+    return loss.item()
 
-    # ── Game loop ───────────────────────────────────────────────────────
+
+# ---------- INITIALIZATION ---------- #
+
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+# Load models
+right_model = torch.load(args.right_model, weights_only=False, map_location=device)
+right_model.train()
+right_target = copy.deepcopy(right_model); right_target.eval()
+right_optimizer = torch.optim.Adam(right_model.parameters(), learning_rate)
+right_replay = collections.deque(maxlen=10**6)
+
+left_model = torch.load(args.left_model, weights_only=False, map_location=device)
+left_model.train()
+left_target = copy.deepcopy(left_model); left_target.eval()
+left_optimizer = torch.optim.Adam(left_model.parameters(), learning_rate)
+left_replay = collections.deque(maxlen=10**6)
+
+loss_fn = torch.nn.MSELoss()
+
+print(f"Right (first_0):  {args.right_model}")
+print(f"Left  (second_0): {args.left_model}")
+print(f"Device: {device}")
+
+# Results directory
+results_dir = f"results/{args.name}"
+os.makedirs(results_dir, exist_ok=True)
+
+csv_file = open(f"{results_dir}/{args.name}_log.csv", "w", newline="")
+csv_writer = csv.writer(csv_file)
+csv_writer.writerow(["iteration", "agent", "score", "loss", "epsilon"])
+
+
+# ---------- TRAINING LOOP ---------- #
+
+env = make_env(args.render)
+env.reset()
+frame_buffers = fresh_frame_buffers()
+
+# Per-agent episode state
+ep_score = {RIGHT_AGENT: 0, LEFT_AGENT: 0}
+ep_losses = {RIGHT_AGENT: [], LEFT_AGENT: []}
+prev_state = {RIGHT_AGENT: None, LEFT_AGENT: None}
+prev_action = {RIGHT_AGENT: None, LEFT_AGENT: None}
+needs_serve = {RIGHT_AGENT: True, LEFT_AGENT: True}
+idle_count = {RIGHT_AGENT: 0, LEFT_AGENT: 0}
+
+iteration = 0
+episode = 0
+last_save_iteration = 0
+right_train_steps = 0
+left_train_steps = 0
+
+# Logging lists (for plotting)
+right_iterations, right_scores, right_losses, right_epsilons = [], [], [], []
+left_iterations, left_scores, left_losses, left_epsilons = [], [], [], []
+
+try:
     for agent in env.agent_iter():
-        step_start = time.time()
         obs, reward, termination, truncation, info = env.last()
+        done = termination or truncation
 
-        if termination or truncation:
-            env.step(None)
-            continue
+        is_right = (agent == RIGHT_AGENT)
+        model = right_model if is_right else left_model
+        target = right_target if is_right else left_target
+        optimizer = right_optimizer if is_right else left_optimizer
+        replay = right_replay if is_right else left_replay
+        t_steps = right_train_steps if is_right else left_train_steps
 
-        # Detect that a point was scored — both agents need to fire to restart
+        ep_score[agent] += reward
         if reward != 0:
-            for a in fire_counter:
-                fire_counter[a] = AUTO_FIRE_STEPS
+            needs_serve[RIGHT_AGENT] = True
+            needs_serve[LEFT_AGENT] = True
 
-        # Auto-fire to serve the ball (replicates FireResetEnv behaviour)
-        if fire_counter.get(agent, 0) > 0:
-            fire_counter[agent] -= 1
-            env.step(FIRE_ACTION)
-            elapsed = time.time() - step_start
-            if elapsed < frame_time:
-                time.sleep(frame_time - elapsed)
-            continue
+        # Build stacked observation (flip for left agent)
+        stacked = get_stacked(frame_buffers, agent, obs, flip=not is_right)
 
-        # Buffer the raw observation
-        stacker.push_raw(agent, obs)
+        # Store transition from previous step
+        if prev_state[agent] is not None:
+            replay.append((prev_state[agent], prev_action[agent], reward, stacked, done))
 
-        # Build the preprocessed, stacked observation
-        processed = stacker.step(agent)
-
-        # For first_0 (left paddle): flip so the model sees itself on the right
-        if agent == "first_0":
-            model_input = flip_frame(processed)
+        # Pick action
+        if done:
+            action_idx = None
+            action_oh = None
+        elif needs_serve[agent]:
+            action_idx = ACTION_FIRE
+            action_oh = torch.zeros(n_actions); action_oh[ACTION_FIRE] = 1
+            needs_serve[agent] = False
+            idle_count[agent] = 0
         else:
-            model_input = processed
+            eps = epsilon_fn(t_steps)
+            action_idx, action_oh = select_action(model, stacked, eps, device)
 
-        # Select action
-        action = select_action(models[agent], model_input, device)
+        # Idle detection — force fire if stuck
+        if action_idx is not None:
+            if action_idx == (prev_action_idx := idle_count.get(f"{agent}_prev", -1)):
+                idle_count[agent] += 1
+            else:
+                idle_count[agent] = 0
+            idle_count[f"{agent}_prev"] = action_idx
+            if idle_count[agent] > 10:
+                action_idx = ACTION_FIRE
+                action_oh = torch.zeros(n_actions); action_oh[ACTION_FIRE] = 1
+                idle_count[agent] = 0
 
-        # For first_0: unflip the action (swap left ↔ right)
-        if agent == "first_0":
-            action = FLIP_ACTION_MAP[action]
+        # Save state for next transition
+        prev_state[agent] = stacked if not done else None
+        prev_action[agent] = action_oh
 
-        env.step(action)
+        env.step(action_idx)
 
-        # Throttle to target FPS
-        elapsed = time.time() - step_start
-        if elapsed < frame_time:
-            time.sleep(frame_time - elapsed)
+        #if args.render:
+        #   time.sleep(0.015)
 
-    env.close()
-    print("Game finished.")
+        # Training (only every update_frequency iterations, once buffer is large enough)
+        if not done and len(replay) >= replay_start_size:
+            if is_right:
+                right_train_steps += 1
+                if right_train_steps % update_frequency == 0:
+                    l = train_step(model, target, optimizer, loss_fn, replay, device)
+                    ep_losses[agent].append(l)
+                if right_train_steps % target_update_freq == 0:
+                    right_target.load_state_dict(right_model.state_dict())
+            else:
+                left_train_steps += 1
+                if left_train_steps % update_frequency == 0:
+                    l = train_step(model, target, optimizer, loss_fn, replay, device)
+                    ep_losses[agent].append(l)
+                if left_train_steps % target_update_freq == 0:
+                    left_target.load_state_dict(left_model.state_dict())
 
+        # Count iterations on the right agent's turns
+        if is_right:
+            iteration += 1
 
-if __name__ == "__main__":
-    main()
-#from pettingzoo.atari import pong_v3
-#import states, actions
-#import sys
-#import torch
-#
-#if len(sys.argv) < 2:
-#    print("Usage: python play.py <model1.pth> <model2.pth>")
-#    sys.exit(1)
-#
-#model_path_1 = sys.argv[1]
-#model_path_2 = sys.argv[2]
-#
-#states.img_size = (84, 84)
-#states.n_frames = 4
-#actions.n_actions = 6
-#device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-#model1 = torch.load(model_path_1, weights_only=False, map_location=device)
-#model2 = torch.load(model_path_2, weights_only=False, map_location=device)
-#
-#env = pong_v3.parallel_env(render_mode="human")
-#observations, infos = env.reset()
-#
-#while env.agents:
-#    # this is where you would insert your policy
-#    actions = {agent: env.action_space(agent).sample() for agent in env.agents}
-#
-#    observations, rewards, terminations, truncations, infos = env.step(actions)
-#env.close()
+        # End of episode — both agents are done
+        if done and agent == LEFT_AGENT:
+            episode += 1
+            r_loss = np.mean(ep_losses[RIGHT_AGENT]) if ep_losses[RIGHT_AGENT] else 0
+            l_loss = np.mean(ep_losses[LEFT_AGENT]) if ep_losses[LEFT_AGENT] else 0
+            r_eps = epsilon_fn(right_train_steps)
+            l_eps = epsilon_fn(left_train_steps)
+
+            right_iterations.append(iteration); right_scores.append(ep_score[RIGHT_AGENT])
+            right_losses.append(r_loss); right_epsilons.append(r_eps)
+            left_iterations.append(iteration); left_scores.append(ep_score[LEFT_AGENT])
+            left_losses.append(l_loss); left_epsilons.append(l_eps)
+
+            csv_writer.writerow([iteration, "right", ep_score[RIGHT_AGENT], f"{r_loss:.6f}", f"{r_eps:.4f}"])
+            csv_writer.writerow([iteration, "left", ep_score[LEFT_AGENT], f"{l_loss:.6f}", f"{l_eps:.4f}"])
+            csv_file.flush()
+
+            print(f"Episode {episode} (iter {iteration}) | "
+                  f"Right: {ep_score[RIGHT_AGENT]:+.0f}  Left: {ep_score[LEFT_AGENT]:+.0f} | "
+                  f"Replay R:{len(right_replay)} L:{len(left_replay)}")
+
+            # Save periodically
+            if iteration // save_every > last_save_iteration // save_every:
+                torch.save(right_model, f"{results_dir}/right_{iteration}.pth")
+                torch.save(left_model, f"{results_dir}/left_{iteration}.pth")
+                last_save_iteration = iteration
+                print(f"  Saved checkpoints at iteration {iteration}")
+
+            # Reset episode — start a new game
+            ep_score = {RIGHT_AGENT: 0, LEFT_AGENT: 0}
+            ep_losses = {RIGHT_AGENT: [], LEFT_AGENT: []}
+            prev_state = {RIGHT_AGENT: None, LEFT_AGENT: None}
+            prev_action = {RIGHT_AGENT: None, LEFT_AGENT: None}
+            needs_serve = {RIGHT_AGENT: True, LEFT_AGENT: True}
+            idle_count = {RIGHT_AGENT: 0, LEFT_AGENT: 0}
+            frame_buffers = fresh_frame_buffers()
+            env.reset()
+
+        if iteration >= n_iterations:
+            break
+
+except KeyboardInterrupt:
+    print(f"\nInterrupted at iteration {iteration}. Saving...")
+
+# Final save
+torch.save(right_model, f"{results_dir}/right_final.pth")
+torch.save(left_model, f"{results_dir}/left_final.pth")
+csv_file.close()
+env.close()
+print("Done.")

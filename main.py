@@ -1,16 +1,15 @@
 import gymnasium as gym
 import ale_py
-import torch, random, os, copy, csv
+import torch, random, os, copy
 from collections import deque
 from functools import partial
 import models, states, actions, plotting
 import numpy as np
 
 
-# ----- SETTINGS ----- #
-
 # interface & runtime
 name = "CNN_Tennis_NoFrameskip"
+# Optional to load model to train a pre-trained model
 load_model = None  # set to a .pth path to resume training, e.g. 'results/CNN_2/CNN_2_100000.pth'
 render = False
 n_iterations = int(1e7)
@@ -24,9 +23,9 @@ minibatch_size = 32
 
 # randomness
 epsilon_fn = partial(actions.epsilon,
-    initial_epsilon=0.01 if load_model else 1,
+    initial_epsilon=0.01 if load_model else 1, # if loading model, epsilon begins at 0.01
     min_epsilon=0.01,
-    min_epsilon_iteration=0.1*n_iterations  # 100k steps of exploration
+    min_epsilon_iteration=0.1*n_iterations 
     )
 
 # training & model
@@ -51,34 +50,23 @@ target_model.eval()
 optimizer = torch.optim.Adam(model.parameters(), learning_rate)
 loss_fn = torch.nn.MSELoss()
 
-
-# ----- INITIALIZATION ----- #
-
-# initialize the environment
-env = gym.make("TennisNoFrameskip-v4", render_mode=('human' if render else None))
+env = gym.make("PongNoFrameskip-v4", render_mode=('human' if render else None))
 env = states.modify_gym_env(env)  # activate the preprocessing functions
 env.metadata['render_fps'] = 60  # only used if render=True
 
-# set the device
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 model.to(device)
 target_model.to(device)
 
-# initialize storage
+# initialise replay buffer and arrays
 D = deque(maxlen=10**4)
 iterations, scores, losses, epsilons = [], [], [], []
 eval_iterations, eval_scores, eval_ma_scores = [], [], []
 if not os.path.exists('results/'+name): os.makedirs('results/'+name)  # create a folder to store the results
 
-# open CSV log file
-csv_file = open('results/'+name+'/'+name+'_log.csv', 'w', newline='')
-csv_writer = csv.writer(csv_file)
-csv_writer.writerow(['iteration', 'type', 'score', 'ma_score', 'loss', 'epsilon'])
-
-
 def run_eval_episodes(model, n_episodes):
-    """Run n_episodes with greedy policy (epsilon=0) and return the average score."""
-    eval_env = gym.make("TennisNoFrameskip-v4", render_mode=None)
+    """ This runs after every 10 training episodes to evaluate the greedy model"""
+    eval_env = gym.make("PongNoFrameskip-v4", render_mode=None)
     eval_env = states.modify_gym_env(eval_env)
     total_score = 0
     for _ in range(n_episodes):
@@ -99,7 +87,6 @@ def run_eval_episodes(model, n_episodes):
     eval_env.close()
     return total_score / n_episodes
 
-
 # set some variables for the loop
 terminated = True
 quit = False
@@ -107,7 +94,6 @@ save = False
 train_step = 0
 episode_count = 0
 
-# ----- TRAINING LOOP ----- #
 
 try:
     for i in range(n_iterations):
@@ -187,8 +173,6 @@ try:
             epsilons += [epsilon]
             episode_count += 1
 
-            csv_writer.writerow([i, 'train', score, '', f"{ep_loss_mean:.6f}", f"{epsilon:.4f}"])
-
             print(f"\rEnd of game (iteration {i}), score: {score}, epsilon: {epsilon:.3f}")
 
             # run greedy evaluation episodes periodically
@@ -199,22 +183,22 @@ try:
                 eval_iterations += [i]
                 eval_scores += [avg_eval_score]
                 eval_ma_scores += [torch.mean(torch.tensor(eval_scores[-10:])).item()]
-                csv_writer.writerow([i, 'eval', avg_eval_score, f"{eval_ma_scores[-1]:.4f}", '', ''])
-                csv_file.flush()
                 print(f"  [EVAL] avg greedy score: {avg_eval_score:.1f}, eval MA-10: {eval_ma_scores[-1]:.2f}")
 
         if save:
+            # Periodic saving of model and plotting of graph
             plotting.save_plot(iterations, scores, losses, epsilons, name,
                                eval_iterations=eval_iterations, eval_scores=eval_scores, eval_ma_scores=eval_ma_scores)
-            torch.save(model, 'results/'+name+'/'+name+'_'+str(i)+'.pth')
+            # Uncomment if saving model is important
+            # torch.save(model, 'results/'+name+'/'+name+'_'+str(i)+'.pth')
             save = False
 
 except KeyboardInterrupt:
+    # If Ctrl + C is pressed, it will still save model
     print(f"\nInterrupted at iteration {i}. Saving model...")
 
 # end of training, save the model, the training logs and a plot
 plotting.save_plot(iterations, scores, losses, epsilons, name,
                    eval_iterations=eval_iterations, eval_scores=eval_scores, eval_ma_scores=eval_ma_scores)
 torch.save(model, 'results/'+name+'/'+name+'.pth')
-csv_file.close()
 print('Done.')
