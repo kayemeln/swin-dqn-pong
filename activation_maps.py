@@ -12,7 +12,7 @@ import models, states, actions, plotting
 import numpy as np
 import random
 
-# change in states before running!!
+# Change img_size in states from (210, 160) to (84, 84) before running this code for activation maps
 img_size = (84, 84) # changed for heatmaps
 
 # load CNN and SWIN trained models 
@@ -166,7 +166,7 @@ def main():
         # this is the batched format that our models expect
         input_tensor = state.unsqueeze(0)
 
-        # average across all four frames so we obtain a single refernce image
+        # average across all four frames so we obtain a single reference image
         input_img = state.float().mean(0).numpy()
 
         # CNN
