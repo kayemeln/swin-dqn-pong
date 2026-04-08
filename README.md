@@ -34,8 +34,9 @@ pip install -r requirements.txt
 ```
 - After that's done, try and run training:
 ```
-python main.py --name <results folder name> --model <'CNN' or 'Swin'>
+python main.py --name CNN_Model --model CNN
 ```
+The argument `name` will create model and plot files under that given name. The argument `model` will determine whether the trained model uses the CNN or Swin architecture. The choices are `CNN` and `Swin`, the default is `CNN`.
 
 This won't stop until it reaches `1,000,000` iterations, which will take a while, but you can just cancel it with `Ctrl-C` and this will save your model `.pth` file into a `results` folder.
 
@@ -49,21 +50,47 @@ python play.py path/to/model.pth
 Disclaimer, this is particularly difficult to get working and can be quite slow, especially at the beginning. It took numerous attempts for us to get it working ourselves and would not work on a windows laptop entirely. Probably not worth trying but if you are interested in getting it to work. 
 
 - [PettingZoo](https://pettingzoo.farama.org/) - An API Standard for multi-agent reinforcement learning
-Within the same virtual environment as before, install for Atari games using
+
+- Within the same virtual environment as before, first clone this repository and install its contents using
 ```
-pip install pettingzoo[atari]
+git clone --depth=1 https://github.com/Farama-Foundation/Multi-Agent-ALE.git
+cd ./Multi-Agent-ALE
+python3 setup.py install
+cd .. # to return to project directory
 ```
-After runnning this command, try and run:
+- After this is complete, install the `battle_requirements.txt` packages
 ```
-python battle.py <right_model.pth> <left_model.pth> --render
+pip install -r battle_requirements.txt
+```
+### Human vs Swin/CNN Model
+
+To play against one of these models yourself, run the following:
+- Against Swin:
+```
+python3 human_vs_model.py models/battle_models/right_Swin.pth
+```
+- Against CNN:
+```
+python3 human_vs_model.py models/battle_models/left_CNN.pth
+```
+The controls are `A` for UP, `D` for DOWN and `SPACE` for FIRE (this is required to serve when its your turn)
+### Watch models compete or play against them yourself!
+
+- To watch the Swin vs CNN battle (while they train!), run
+```
+python battle.py models/battle_models/right_Swin.pth models/battle_models/left_CNN.pth --render
+```
+or if you want to watch the training from scratch, run
+```
+python battle.py <right_model> <left_model> --render
 ```
 This will allow two models to train against each other, the pre-trained models have been provided and are in the 'models' folder. The battle models have been trained, and are designed specifically for this purpose, to help you visualize a decent match against each other. However, if you wish to visualize the training from scratch, the orginal models can also be loaded in if you swap out the arguments. 
 
 The render will allow you to visualize them playing against each other, if it is not included then the training will be done but no viewing. 
 
-### (Updated) Current Results
+### Current Results
 
-These are our results as of 24/03/26. The figures below show the moving eval score averages with window size 10, along with the scores for each episode, the training loss and the epsilon value.
+The figures below show the moving eval score averages with window size 10, along with the scores for each episode, the training loss and the epsilon value.
 
 The eval score is calculated by following a greedy policy on the current Q-model.
 
@@ -77,19 +104,6 @@ The eval score is calculated by following a greedy policy on the current Q-model
 ![Comparing both models](images/CNN-vs-Swin-NoFrameskip.png)
 
 ### Activation Maps
-
-A few changes were made to the original `activation_maps.py` file:
-
-- Moved the forward hooks from indexes `{0, 2, 4}` of `model.conv_layers[]` to `{1, 3, 5}`
-    - This is because these indexes contain the ReLU modules, so we remove a lot of redundancy or noise
-- The `get_sample_input_from_env` function now takes an input sample from a random iteration number between 100-1000
-    - Just to get some variation and see some other activation maps
-    - Also added a `for` loop in the entry function which creates 3 figures
-- Added the argument `interpolation=cv2.INTER_NEAREST` to the `cv2.resize` functions within the `plot_comparison` function
-    - This removes the blending of pixels in our heatmaps and makes distinct boundaries between the features
-    - Also reduced `alpha` transparency to 0.4
-
-Here are some of the updated images:
 
 ![activation maps 1](images/activation-maps-1.png)
 ![activation maps 2](images/activation-maps-2.png)
