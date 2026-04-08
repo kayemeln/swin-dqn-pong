@@ -15,9 +15,15 @@ or
 ```
 conda create venv 
 ```
-- Activate that venv (you might have to do it differently if you're on Windows):
+- Activate that venv:
 ```
+# macOS / Linux (venv)
 source venv/bin/activate
+
+# Windows (venv - CMD/PowerShell)
+.\venv\Scripts\activate
+
+# Conda environment
 conda activate venv
 ```
 - Install the dependencies from `requirements.txt`:
