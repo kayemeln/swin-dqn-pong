@@ -16,14 +16,16 @@ or
 conda create venv 
 ```
 - Activate that venv:
-```
 # macOS / Linux (venv)
+```
 source venv/bin/activate
-
+```
 # Windows (venv - CMD/PowerShell)
+```
 .\venv\Scripts\activate
-
+```
 # Conda environment
+```
 conda activate venv
 ```
 - Install the dependencies from `requirements.txt`:
@@ -51,9 +53,14 @@ Within the same virtual environment as before, install for Atari games using
 ```
 pip install pettingzoo[atari]
 ```
+After runnning this command, try and run:
+```
+python battle.py <right_model.pth> <left_model.pth> --render
+```
+This will allow two models to train against each other, the pre-trained models have been provided and are in the 'models' folder. The battle models have been trained, and are designed specifically for this purpose, to help you visualize a decent match against each other. However, if you wish to visualize the training from scratch, the orginal models can also be loaded in if you swap out the arguments. 
 
+The render will allow you to visualize them playing against each other, if it is not included then the training will be done but no viewing. 
 
-- 
 ### (Updated) Current Results
 
 These are our results as of 24/03/26. The figures below show the moving eval score averages with window size 10, along with the scores for each episode, the training loss and the epsilon value.
