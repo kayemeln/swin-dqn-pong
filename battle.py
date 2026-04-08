@@ -3,7 +3,10 @@ Arena training: two pre-trained models play Pong against each other and
 continue learning via Double DQN.
 
 Usage:
-    python arena_2.py <right_model.pth> <left_model.pth> [--render] [--name NAME]
+    python battle.py <right_model.pth> <left_model.pth> [--render] [--name NAME]
+
+Example:
+
 
 first_0 is the RIGHT paddle, second_0 is the LEFT paddle.
 The left agent receives horizontally flipped observations so both models
@@ -25,8 +28,6 @@ import supersuit as ss
 import plotting
 
 
-# ---------- CLI ---------- #
-
 parser = argparse.ArgumentParser()
 parser.add_argument("right_model", help="Path to model for right paddle (first_0)")
 parser.add_argument("left_model", help="Path to model for left paddle (second_0)")
@@ -35,7 +36,7 @@ parser.add_argument("--name", default="Arena")
 args = parser.parse_args()
 
 
-# ---------- SETTINGS ---------- #
+# Settings
 
 n_iterations = int(1e7)
 save_every = int(1e5)
@@ -55,7 +56,7 @@ RIGHT_AGENT = "first_0"
 LEFT_AGENT = "second_0"
 
 
-# ---------- HELPERS ---------- #
+# Helper functions
 
 def epsilon_fn(step):
     return max(min_epsilon,
@@ -124,9 +125,6 @@ def train_step(model, target_model, optimizer, loss_fn, replay_buffer, device):
     optimizer.step()
     return loss.item()
 
-
-# ---------- INITIALIZATION ---------- #
-
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 # Load models
@@ -157,8 +155,7 @@ csv_writer = csv.writer(csv_file)
 csv_writer.writerow(["iteration", "agent", "score", "loss", "epsilon"])
 
 
-# ---------- TRAINING LOOP ---------- #
-
+# Training
 env = make_env(args.render)
 env.reset()
 frame_buffers = fresh_frame_buffers()
@@ -218,7 +215,7 @@ try:
             eps = epsilon_fn(t_steps)
             action_idx, action_oh = select_action(model, stacked, eps, device)
 
-        # Idle detection — force fire if stuck
+        # Idle detection — force fire if stuck (for after a point is score because models are not trained to fire)
         if action_idx is not None:
             if action_idx == (prev_action_idx := idle_count.get(f"{agent}_prev", -1)):
                 idle_count[agent] += 1
