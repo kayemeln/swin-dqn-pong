@@ -168,7 +168,6 @@ sniffio==1.3.1
 soupsieve==2.6
 SQLAlchemy==2.0.41
 # Editable install with no version control (stable-retro==0.9.8)
--e /Users/ciarancope/advancedai/stable-retro
 stack-data==0.6.3
 sympy==1.14.0
 tenacity==9.1.2

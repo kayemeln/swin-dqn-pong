@@ -22,7 +22,7 @@ save_every = int(1e5)
 # preprocessing
 states.img_size = (84, 84)
 states.n_frames = 4
-actions.n_actions = 18
+actions.n_actions = 6
 minibatch_size = 32
 
 # randomness

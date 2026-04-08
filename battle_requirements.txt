@@ -1,0 +1,5 @@
+pettingzoo[atari]
+pygame
+supersuit
+autorom
+autorom[accept-rom-license]
