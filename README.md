@@ -5,7 +5,7 @@ If you're tryna get this thang to learn pong
 
 ---
 
-Try this to run it:
+### Setup Instructions
 
 - Create a Python or conda virtual environment:
 ```
@@ -16,15 +16,15 @@ or
 conda create venv 
 ```
 - Activate that venv:
-# macOS / Linux (venv)
+##### macOS / Linux (venv)
 ```
 source venv/bin/activate
 ```
-# Windows (venv - CMD/PowerShell)
+##### Windows (venv - CMD/PowerShell)
 ```
 .\venv\Scripts\activate
 ```
-# Conda environment
+##### Conda environment
 ```
 conda activate venv
 ```
@@ -32,9 +32,9 @@ conda activate venv
 ```
 pip install -r requirements.txt
 ```
-- After that's done, try and run it:
+- After that's done, try and run training:
 ```
-python main.py
+python main.py --name <results folder name> --model <'CNN' or 'Swin'>
 ```
 
 This won't stop until it reaches `1,000,000` iterations, which will take a while, but you can just cancel it with `Ctrl-C` and this will save your model `.pth` file into a `results` folder.
