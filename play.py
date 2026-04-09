@@ -25,7 +25,7 @@ model.eval()
 print(f"Loaded model from {model_path} (device: {device})")
 
 # Environment initialisation 
-env = gym.make("PongNoFrameskip-v4", render_mode='human')
+env = gym.make("PongNoFrameskip-v4", render_mode='human', repeat_action_probability=0.1)
 env = states.modify_gym_env(env)
 env.metadata['render_fps'] = 60
 
