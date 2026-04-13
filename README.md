@@ -4,12 +4,14 @@
 tryna get this thang to learn pong
 
 ### After having learned Pong:
-#### CNN
-![CNNvsBot](images/CNN.gif)
-#### Swin
-![CNNvsBot](images/Swin.gif)
+#### CNN (right)
+<img src="images/CNN.gif" alt="CNNVsBot" width="300">
+
+#### Swin (right)
+<img src="images/Swin.gif" alt="SwinVsBot" width="300">
+
 #### CNN (left) vs Swin (right)
-![CNNvsBot](images/1v1.gif)
+<img src="images/1v1.gif" alt="CNNVsSwin" width="300">
 
 ### Setup Instructions
 
