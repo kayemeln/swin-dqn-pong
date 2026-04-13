@@ -1,9 +1,15 @@
 # Advanced AI
 
 ## Pong Agent
-If you're tryna get this thang to learn pong
+tryna get this thang to learn pong
 
----
+### After having learned Pong:
+#### CNN
+![CNNvsBot](images/CNN.gif)
+#### Swin
+![CNNvsBot](images/Swin.gif)
+#### CNN (left) vs Swin (right)
+![CNNvsBot](images/1v1.gif)
 
 ### Setup Instructions
 
